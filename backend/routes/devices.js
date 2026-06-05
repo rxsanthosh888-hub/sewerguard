@@ -6,8 +6,13 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 // Get all devices
 router.get('/', authMiddleware, (req, res) => {
   try {
-    const devices = db.getAllDevices();
-    res.json(devices);
+    const devices = db.getAllDevices().map(d => ({
+      ...d,
+      batteryLevel: d.battery,
+      signalStrength: 95,
+      type: 'pressure_monitor'
+    }));
+    res.json({ devices, total: devices.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

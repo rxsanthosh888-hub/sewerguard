@@ -45,4 +45,42 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Verify token
+router.post('/verify', (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'sewerguard_super_secret_jwt_key_2024_enterprise'
+    );
+
+    const user = db.findUserById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    res.json({ valid: true, user: { id: user.id, email: user.email, role: user.role } });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// Get demo users (for testing)
+router.get('/demo-users', (req, res) => {
+  try {
+    const demoUsers = [
+      { email: 'admin@sewerguard.com', password: 'admin123', role: 'admin' },
+      { email: 'john@sewerguard.com', password: 'super123', role: 'supervisor' },
+      { email: 'mike@sewerguard.com', password: 'worker123', role: 'worker' }
+    ];
+    res.json({ demoUsers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

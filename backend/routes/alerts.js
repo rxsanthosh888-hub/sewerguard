@@ -9,13 +9,17 @@ router.get('/', authMiddleware, (req, res) => {
     const alerts = db.getAllAlerts();
     const withWorkers = alerts.map((alert) => {
       const worker = db.getWorkerById(alert.workerId);
+      const device = worker ? db.getDeviceById(worker.deviceId) : null;
       return {
         ...alert,
+        createdAt: alert.timestamp,
         workerName: worker?.name,
         workerEmail: worker?.email,
+        device: device,
+        sensor: db.getLatestSensor(device?.id)
       };
     });
-    res.json(withWorkers);
+    res.json({ alerts: withWorkers, total: withWorkers.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

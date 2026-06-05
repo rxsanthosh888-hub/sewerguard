@@ -6,8 +6,24 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 // Get all supervisors
 router.get('/', authMiddleware, (req, res) => {
   try {
-    const supervisors = db.getAllSupervisors();
-    res.json(supervisors);
+    const supervisors = db.getAllSupervisors().map(s => {
+      const unresolvedAlerts = db.getUnresolvedAlerts().filter(a => {
+        const worker = db.workers.find(w => w.id === a.workerId);
+        return worker && worker.supervisorId === s.id;
+      });
+      return {
+        ...s,
+        status: 'active',
+        teamSize: s.assignedWorkers.length,
+        activeAlerts: unresolvedAlerts.length,
+        resolvedAlerts: db.alerts.filter(a => {
+          const worker = db.workers.find(w => w.id === a.workerId);
+          return worker && worker.supervisorId === s.id && a.status === 'resolved';
+        }).length,
+        supervisedWorkers: db.workers.filter(w => w.supervisorId === s.id)
+      };
+    });
+    res.json({ supervisors, total: supervisors.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

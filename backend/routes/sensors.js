@@ -164,4 +164,42 @@ router.get('/realtime', authMiddleware, (req, res) => {
   }
 });
 
+// Get all sensors (with optional deviceId filter)
+router.get('/', authMiddleware, (req, res) => {
+  try {
+    const { deviceId } = req.query;
+    let sensors = db.sensors;
+    
+    if (deviceId) {
+      sensors = sensors.filter(s => s.deviceId === deviceId);
+    }
+    
+    res.json({ 
+      sensors,
+      total: sensors.length 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get sensor readings
+router.get('/readings', authMiddleware, (req, res) => {
+  try {
+    const { deviceId } = req.query;
+    let sensors = db.sensors;
+    
+    if (deviceId) {
+      sensors = sensors.filter(s => s.deviceId === deviceId);
+    }
+    
+    res.json({ 
+      sensors: sensors.slice(-100),
+      total: sensors.length 
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

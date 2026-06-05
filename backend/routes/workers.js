@@ -10,8 +10,10 @@ router.get('/', authMiddleware, (req, res) => {
     const workersWithSensors = workers.map((w) => ({
       ...w,
       latestSensor: db.getLatestSensor(w.deviceId),
+      tasksCompleted: 0,
+      assignedDevices: [w.deviceId]
     }));
-    res.json(workersWithSensors);
+    res.json({ workers: workersWithSensors, total: workersWithSensors.length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
