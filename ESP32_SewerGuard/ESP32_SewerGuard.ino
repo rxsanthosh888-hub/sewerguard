@@ -20,10 +20,9 @@ const char* WIFI_PASSWORD = "santhosh kvg";
 
 // ─────────────────────────────────────────────
 // SEWERGUARD SERVER URL
-// For local testing, use your PC's IP: http://172.20.46.24:5000/api/sensors/ingest
-// For production, use: https://sewerguard-backend.vercel.app/api/sensors/ingest
+// Updated to use Render backend (production)
 // ─────────────────────────────────────────────
-const char* SERVER_URL = "http://172.20.46.24:5000/api/sensors/ingest";
+const char* SERVER_URL = "https://sewerguard-backend.onrender.com/api/sensors/ingest";
 
 // ─────────────────────────────────────────────
 // DEVICE ID — Must match device in SewerGuard app

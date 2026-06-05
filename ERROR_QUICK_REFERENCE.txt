@@ -1,0 +1,151 @@
+================================================================================
+SEWERGUARD PROJECT - QUICK ERROR REFERENCE
+================================================================================
+
+TOTAL ERRORS FOUND: 58
+
+================================================================================
+BACKEND ERRORS (19 issues)
+================================================================================
+
+1. backend/routes/alerts.js - Alert status "active" vs "unresolved" mismatch
+2. backend/routes/alerts.js - Missing GET /alerts/:id endpoint
+3. backend/routes/alerts.js - Inconsistent createdAt/timestamp field naming
+4. backend/routes/alerts.js - Undefined sensor error handling
+5. backend/routes/dashboard.js - NO AUTHENTICATION on dashboard endpoints (SECURITY)
+6. backend/routes/dashboard.js - Missing total alerts field in response
+7. backend/routes/alerts.js - Frontend expects PATCH but backend uses PUT
+8. frontend/src/api - Many endpoints not implemented in backend
+9. backend/routes/workers.js - Hardcoded static values (tasksCompleted, assignedDevices)
+10. backend/routes/supervisors.js - Missing userId validation and mapping
+11. backend/routes/supervisors.js - Delete method always returns true (logic error)
+12. backend/routes/sensors.js - Conflicting /sensors and /sensors/readings endpoints
+13. backend/middleware/auth.js - Hardcoded JWT secret fallback (SECURITY)
+14. backend/server.js - JWT_SECRET environment variable not validated
+15. backend/server.js - CORS too permissive (origin: '*') (SECURITY)
+16. backend/server.js - credentials: false conflicts with wildcard CORS
+17. backend/config/db.js - In-memory database, no persistence
+18. backend/config/db.js - Demo data inconsistency (worker assigned to wrong user)
+19. backend/config/db.js - Missing updateDevice timestamp fields
+
+================================================================================
+FRONTEND ERRORS (16 issues)
+================================================================================
+
+20. frontend/src/api/index.js - Alert status endpoint mismatch
+21. frontend/src/api/index.js - getStats() calls non-existent endpoint
+22. frontend/src/api/index.js - updateStatus() endpoint doesn't exist in backend
+23. frontend/src/api/index.js - Multiple sensor endpoints not implemented
+24. frontend/src/api/index.js - Reports API endpoints don't exist in backend
+25. frontend/pages/Login.jsx - Error message parsing incorrect
+26. frontend/pages/admin/Dashboard.jsx - Missing overview.alerts.total field
+27. frontend/pages/admin/Dashboard.jsx - Stat card onClick does nothing
+28. frontend/pages/admin/Workers.jsx - Multi-device selector but backend single device
+29. frontend/pages/admin/Alerts.jsx - Status filter "active" vs "unresolved"
+30. frontend/pages/admin/Devices.jsx - N+1 query problem (batch fetch inefficient)
+31. frontend/pages/admin/Reports.jsx - Backend /api/reports endpoint doesn't exist
+32. frontend/pages/admin/Reports.jsx - PDF generation type safety issues
+33. frontend/context/AuthContext.jsx - No error handling or error states
+34. frontend/context/AuthContext.jsx - JWT token expiry not handled (24h timeout)
+35. frontend/components/AlertBadge.jsx - device?.name undefined
+36. frontend/pages/admin/Workers.jsx - Missing worker.status field
+
+================================================================================
+ESP32 ERRORS (13 issues)
+================================================================================
+
+37. ESP32_SewerGuard.ino - Hardcoded WiFi credentials "santhosh"/"santhosh kvg" (SECURITY)
+38. ESP32_SewerGuard.ino - Hardcoded server URL "172.20.46.24:5000" (development)
+39. ESP32_SewerGuard.ino - Hardcoded device ID "AA:BB:CC:DD:EE:01"
+40. ESP32_SewerGuard.ino - Battery always returns 100% (not implemented)
+41. ESP32_SewerGuard.ino - Gas sensor calibration is inaccurate (simple map, no calibration)
+42. ESP32_SewerGuard.ino - Fall threshold 2.5g too sensitive (false alerts)
+43. ESP32_SewerGuard.ino - Fall detection not debounced (multiple alerts per event)
+44. ESP32_SewerGuard.ino - SOS button debounce only 300ms (too short)
+45. ESP32_SewerGuard.ino - SOS flag state management issue
+46. ESP32_SewerGuard.ino - HTTPClient timeout 5s blocks main loop
+47. ESP32_SewerGuard.ino - WiFi reconnection blocks main loop (10 second wait)
+48. ESP32_SewerGuard.ino - HTTP status check too strict (only accepts 200, not 201)
+49. ESP32_SewerGuard.ino - JSON buffer size 256 bytes might overflow
+
+================================================================================
+CONFIGURATION ERRORS (8 issues)
+================================================================================
+
+50. backend/.env - Missing required environment variables (DATABASE_URL, etc)
+51. frontend/.env - Points to production while developing (onrender.com)
+52. backend/package.json - No port validation in startup
+53. backend/package.json - Missing explicit timeout library
+54. backend/.env - JWT configuration not documented (24h expiry)
+55. All - No input validation on worker creation
+56. All - No uniqueness constraints on device creation
+57. All - No SQL injection protection (if migrating to SQL)
+58. backend/routes/auth.js - Demo user passwords exposed via /api/auth/demo-users (SECURITY)
+
+================================================================================
+CRITICAL ISSUES (Must Fix Before Production)
+================================================================================
+
+🔴 CRITICAL:
+   - Dashboard endpoints missing authentication
+   - CORS too permissive (origin: '*')
+   - Hardcoded JWT secret in code
+   - Frontend API endpoints don't match backend
+   - In-memory database loses all data on restart
+   - Demo passwords exposed via API
+   - WiFi credentials hardcoded in ESP32
+   - ESP32 server URL hardcoded
+   - Gas sensors completely inaccurate
+   - Fall detection too sensitive
+
+🟠 HIGH:
+   - JWT token expiry not handled
+   - Alert status naming mismatch
+   - Reports API missing
+   - Sensor endpoints not implemented
+   - Battery always shows 100%
+   - Error handling in Login fails
+
+🟡 MEDIUM:
+   - Demo data inconsistency
+   - Workers form doesn't match backend
+   - N+1 query performance issue
+   - Fall detection debouncing
+
+🔵 LOW:
+   - JSON buffer might overflow
+   - SOS debounce too short
+   - AuthContext missing error handling
+
+================================================================================
+IMMEDIATE ACTION ITEMS
+================================================================================
+
+1. SECURITY: Remove hardcoded credentials from code
+   - Move WiFi credentials to ESP32 EEPROM
+   - Move JWT secret to .env with validation
+   - Protect demo user endpoint or remove it
+
+2. API ALIGNMENT: Fix all endpoint mismatches
+   - Implement missing backend endpoints
+   - Fix alert status naming (unresolved vs active)
+   - Implement reports API
+
+3. DATABASE: Migrate from in-memory to persistent storage
+   - Set up MongoDB or Firebase
+   - Update db.js to use real database
+   - Data persistence
+
+4. AUTHENTICATION: Fix dashboard endpoint security
+   - Add authMiddleware to all dashboard routes
+   - Fix CORS to specific origins
+   - Implement token refresh
+
+5. ESP32: Fix sensor calibration and safety
+   - Implement real battery monitoring
+   - Calibrate gas sensors properly
+   - Add proper debouncing for fall detection
+
+================================================================================
+For detailed information about each error, see: COMPREHENSIVE_ERROR_REPORT.md
+================================================================================
