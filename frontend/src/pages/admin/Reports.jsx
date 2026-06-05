@@ -1,247 +1,239 @@
-import React, { useState, useEffect } from 'react'
-import { FileText, Download, RefreshCw, TrendingUp, Users, AlertTriangle, Cpu, FileSpreadsheet } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
-import toast from 'react-hot-toast'
-import { reportsAPI } from '../../api'
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Layout from '../../components/Layout';
+import { reportsAPI } from '../../api/index';
+import { Download, Plus, Trash2 } from 'lucide-react';
+import jsPDF from 'jspdf';
 
-const COLORS = ['#f97316','#ef4444','#a855f7','#3b82f6','#22c55e']
+const Reports = () => {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(null);
 
-export default function AdminReports() {
-  const [summary, setSummary]   = useState(null)
-  const [workers, setWorkers]   = useState([])
-  const [alerts, setAlerts]     = useState([])
-  const [loading, setLoading]   = useState(true)
+  useEffect(() => {
+    fetchReports();
+  }, []);
 
-  const load = async () => {
+  const fetchReports = async () => {
     try {
-      const [s, w, a] = await Promise.all([reportsAPI.getSummary(), reportsAPI.getWorkers(), reportsAPI.getAlerts()])
-      setSummary(s.data); setWorkers(w.data); setAlerts(a.data)
-    } catch { toast.error('Failed to load reports') }
-    finally  { setLoading(false) }
-  }
-  useEffect(() => { load() }, [])
+      setLoading(true);
+      const response = await reportsAPI.getAll();
+      setReports(response.data.reports);
+    } catch (error) {
+      toast.error('Failed to load reports');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const downloadPDF = async () => {
-    toast.loading('Generating PDF...', { id: 'pdf' })
+  const generateReport = async (type) => {
     try {
-      const { default: jsPDF }       = await import('jspdf')
-      const { default: autoTable }   = await import('jspdf-autotable')
-      const doc = new jsPDF()
+      setGenerating(type);
+      let response;
 
-      // Header
-      doc.setFillColor(249, 115, 22)
-      doc.rect(0, 0, 210, 25, 'F')
-      doc.setTextColor(255,255,255)
-      doc.setFontSize(18)
-      doc.setFont('helvetica','bold')
-      doc.text('SewerGuard — Safety Report', 14, 16)
-      doc.setFontSize(9)
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 140, 16)
-
-      // Summary
-      doc.setTextColor(0,0,0)
-      doc.setFontSize(13); doc.setFont('helvetica','bold')
-      doc.text('Executive Summary', 14, 38)
-      autoTable(doc, {
-        startY: 43,
-        head: [['Metric','Value']],
-        body: [
-          ['Total Workers', summary?.totalWorkers],
-          ['Active Workers', summary?.activeWorkers],
-          ['Total Supervisors', summary?.totalSupervisors],
-          ['Online Devices', summary?.onlineDevices],
-          ['Total Alerts', summary?.totalAlerts],
-          ['Critical Alerts', summary?.criticalAlerts],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [249,115,22] },
-        styles: { fontSize: 9 }
-      })
-
-      // Workers
-      doc.setFontSize(13); doc.setFont('helvetica','bold')
-      doc.text('Worker Registry', 14, doc.lastAutoTable.finalY + 15)
-      autoTable(doc, {
-        startY: doc.lastAutoTable.finalY + 20,
-        head: [['Name','Employee ID','Zone','Supervisor','Status','Alerts']],
-        body: workers.map(w => [w.name, w.employeeId, w.zone, w.supervisorName, w.status, w.alertCount]),
-        theme: 'striped',
-        headStyles: { fillColor: [249,115,22] },
-        styles: { fontSize: 8 }
-      })
-
-      // Alerts
-      if (alerts.length > 0) {
-        doc.addPage()
-        doc.setFontSize(13); doc.setFont('helvetica','bold')
-        doc.text('Alert History', 14, 20)
-        autoTable(doc, {
-          startY: 25,
-          head: [['Worker','Type','Severity','Status','Timestamp']],
-          body: alerts.slice(0,50).map(a => [a.workerName, a.type, a.severity, a.status, new Date(a.timestamp).toLocaleString()]),
-          theme: 'striped',
-          headStyles: { fillColor: [239,68,68] },
-          styles: { fontSize: 8 }
-        })
+      if (type === 'monthly') {
+        response = await reportsAPI.generateMonthly();
+      } else if (type === 'alert_analysis') {
+        response = await reportsAPI.generateAlertAnalysis();
+      } else if (type === 'health') {
+        response = await reportsAPI.generateHealth();
       }
 
-      doc.save(`SewerGuard-Report-${new Date().toISOString().slice(0,10)}.pdf`)
-      toast.success('PDF downloaded!', { id: 'pdf' })
-    } catch(e) { toast.error('PDF generation failed', { id: 'pdf' }) }
-  }
+      if (response) {
+        toast.success('Report generated successfully');
+        fetchReports();
+      }
+    } catch (error) {
+      toast.error('Failed to generate report');
+      console.error('Error:', error);
+    } finally {
+      setGenerating(null);
+    }
+  };
 
-  const downloadExcel = async () => {
-    toast.loading('Generating Excel...', { id: 'xls' })
+  const downloadPDF = (report) => {
     try {
-      const XLSX = await import('xlsx')
-      const wb   = XLSX.utils.book_new()
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 15;
 
-      // Summary sheet
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-        ['SewerGuard Safety Report'],
-        ['Generated', new Date().toLocaleString()],
-        [],
-        ['Metric', 'Value'],
-        ['Total Workers',    summary?.totalWorkers],
-        ['Active Workers',   summary?.activeWorkers],
-        ['Total Supervisors',summary?.totalSupervisors],
-        ['Online Devices',   summary?.onlineDevices],
-        ['Total Alerts',     summary?.totalAlerts],
-        ['Critical Alerts',  summary?.criticalAlerts],
-      ]), 'Summary')
+      // Header
+      doc.setFontSize(18);
+      doc.text(report.title, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
 
-      // Workers
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-        workers.map(w => ({ Name: w.name, 'Employee ID': w.employeeId, Zone: w.zone, Supervisor: w.supervisorName, Status: w.status, Alerts: w.alertCount }))
-      ), 'Workers')
+      // Report Info
+      doc.setFontSize(10);
+      doc.text(`Type: ${report.type.replace(/_/g, ' ').toUpperCase()}`, 15, yPosition);
+      yPosition += 5;
+      doc.text(`Period: ${report.period}`, 15, yPosition);
+      yPosition += 5;
+      doc.text(`Generated: ${new Date(report.generatedAt).toLocaleString()}`, 15, yPosition);
+      yPosition += 10;
 
-      // Alerts
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-        alerts.map(a => ({ Worker: a.workerName, Type: a.type, Severity: a.severity, Status: a.status, Message: a.message, Timestamp: new Date(a.timestamp).toLocaleString() }))
-      ), 'Alerts')
+      // Summary
+      doc.setFontSize(12);
+      doc.text('Summary:', 15, yPosition);
+      yPosition += 7;
 
-      XLSX.writeFile(wb, `SewerGuard-Report-${new Date().toISOString().slice(0,10)}.xlsx`)
-      toast.success('Excel downloaded!', { id: 'xls' })
-    } catch { toast.error('Excel generation failed', { id: 'xls' }) }
+      doc.setFontSize(10);
+      Object.entries(report.summary).forEach(([key, value]) => {
+        if (yPosition > pageHeight - 20) {
+          doc.addPage();
+          yPosition = 15;
+        }
+        const label = key.replace(/_/g, ' ').charAt(0).toUpperCase() + key.replace(/_/g, ' ').slice(1);
+        doc.text(`${label}: ${value}`, 20, yPosition);
+        yPosition += 5;
+      });
+
+      // Save PDF
+      doc.save(`${report.title}.pdf`);
+      toast.success('Report downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download report');
+      console.error('Download error:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this report?')) {
+      try {
+        await reportsAPI.delete(id);
+        toast.success('Report deleted successfully');
+        fetchReports();
+      } catch (error) {
+        toast.error('Failed to delete report');
+      }
+    }
+  };
+
+  const getReportIcon = (type) => {
+    const icons = {
+      monthly: '📅',
+      health: '🏥',
+      alert_analysis: '📊'
+    };
+    return icons[type] || '📋';
+  };
+
+  if (loading) {
+    return <Layout><div className="text-center py-8">Loading reports...</div></Layout>;
   }
-
-  const alertByType = summary?.alertsByType
-    ? Object.entries(summary.alertsByType).map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }))
-    : []
-
-  const workerStatus = [
-    { name: 'Active',   value: summary?.activeWorkers || 0 },
-    { name: 'Inactive', value: summary?.inactiveWorkers || 0 },
-  ]
-
-  if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="w-6 h-6 text-orange-500 animate-spin" /></div>
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-white">Reports & Analytics</h1>
-          <p className="text-dark-400 text-sm">System-wide safety performance overview</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={downloadPDF}   className="sg-btn sg-btn-primary"><Download size={14} /> PDF</button>
-          <button onClick={downloadExcel} className="sg-btn sg-btn-ghost"><FileSpreadsheet size={14} /> Excel</button>
-        </div>
-      </div>
+    <Layout>
+      <div className="space-y-6">
+        {/* Generate Report Section */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Plus size={20} /> Generate New Report
+          </h3>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Workers',  value: summary?.totalWorkers,   icon: Users,          color: 'text-blue-400',   bg: 'bg-blue-500/10 border-blue-500/20' },
-          { label: 'Active Workers', value: summary?.activeWorkers,  icon: TrendingUp,     color: 'text-green-400',  bg: 'bg-green-500/10 border-green-500/20' },
-          { label: 'Total Alerts',   value: summary?.totalAlerts,    icon: AlertTriangle,  color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-          { label: 'Online Devices', value: `${summary?.onlineDevices}/${summary?.totalDevices}`, icon: Cpu, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
-        ].map(s => (
-          <div key={s.label} className={`rounded-xl p-4 border ${s.bg}`}>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-dark-400">{s.label}</p>
-              <s.icon size={16} className={s.color} />
-            </div>
-            <p className={`text-3xl font-black tabular-nums ${s.color}`}>{s.value}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button
+              onClick={() => generateReport('monthly')}
+              disabled={generating === 'monthly'}
+              className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {generating === 'monthly' ? 'Generating...' : '📅 Monthly Report'}
+            </button>
+            <button
+              onClick={() => generateReport('health')}
+              disabled={generating === 'health'}
+              className="bg-green-100 hover:bg-green-200 text-green-800 py-4 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {generating === 'health' ? 'Generating...' : '🏥 Health Report'}
+            </button>
+            <button
+              onClick={() => generateReport('alert_analysis')}
+              disabled={generating === 'alert_analysis'}
+              className="bg-orange-100 hover:bg-orange-200 text-orange-800 py-4 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {generating === 'alert_analysis' ? 'Generating...' : '📊 Alert Analysis'}
+            </button>
           </div>
-        ))}
-      </div>
-
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Alert by type */}
-        <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Alerts by Type</h3>
-          {alertByType.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={alertByType} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {alertByType.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '8px' }} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#71717a' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <p className="text-center text-dark-500 py-16 text-sm">No alert data</p>}
         </div>
 
-        {/* Worker status */}
-        <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-white mb-4">Worker Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={workerStatus}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-              <XAxis dataKey="name" stroke="#333" tick={{ fill: '#52525b', fontSize: 11 }} />
-              <YAxis stroke="#333" tick={{ fill: '#52525b', fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: '8px' }} />
-              <Bar dataKey="value" name="Workers" radius={[6,6,0,0]}>
-                {workerStatus.map((_, i) => <Cell key={i} fill={i === 0 ? '#22c55e' : '#ef4444'} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+        {/* Reports List */}
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-800">Generated Reports</h2>
 
-      {/* Workers table */}
-      <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#1a1a1a]">
-          <h3 className="text-sm font-bold text-white">Worker Report</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr><th>Worker</th><th>Employee ID</th><th>Zone</th><th>Supervisor</th><th>Status</th><th>Total Alerts</th></tr>
-            </thead>
-            <tbody>
-              {workers.map(w => (
-                <tr key={w.id}>
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400">
-                        {w.name?.charAt(0)}
+          {reports.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reports.map((report) => (
+                <div key={report.id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-3">
+                      <span className="text-3xl">{getReportIcon(report.type)}</span>
+                      <div>
+                        <h3 className="font-semibold text-lg text-gray-800">{report.title}</h3>
+                        <p className="text-sm text-gray-600 capitalize">{report.type.replace(/_/g, ' ')}</p>
                       </div>
-                      <span className="text-sm font-semibold text-white">{w.name}</span>
                     </div>
-                  </td>
-                  <td><span className="text-xs font-mono text-dark-300">{w.employeeId}</span></td>
-                  <td><span className="text-xs text-dark-300">{w.zone}</span></td>
-                  <td><span className="text-xs text-dark-300">{w.supervisorName}</span></td>
-                  <td>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${w.status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-[#1a1a1a] text-dark-400 border-[#2a2a2a]'}`}>
-                      {w.status?.toUpperCase()}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`text-sm font-bold tabular-nums ${w.alertCount > 0 ? 'text-orange-400' : 'text-dark-400'}`}>
-                      {w.alertCount}
-                    </span>
-                  </td>
-                </tr>
+                  </div>
+
+                  <div className="space-y-2 mb-4 text-sm text-gray-600 border-y py-3">
+                    <div className="flex justify-between">
+                      <span>Period:</span>
+                      <span className="font-semibold">{report.period}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Generated:</span>
+                      <span className="font-semibold">{new Date(report.generatedAt).toLocaleDateString()}</span>
+                    </div>
+                    {report.generatedByUser && (
+                      <div className="flex justify-between">
+                        <span>By:</span>
+                        <span className="font-semibold">{report.generatedByUser.name}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary Preview */}
+                  <div className="mb-4 bg-gray-50 p-3 rounded text-sm">
+                    <p className="font-semibold text-gray-700 mb-2">Summary:</p>
+                    <div className="space-y-1">
+                      {Object.entries(report.summary).slice(0, 3).map(([key, value]) => (
+                        <div key={key} className="flex justify-between text-xs">
+                          <span className="text-gray-600">
+                            {key.replace(/_/g, ' ').charAt(0).toUpperCase() + key.replace(/_/g, ' ').slice(1)}:
+                          </span>
+                          <span className="font-semibold">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-4 border-t">
+                    <button
+                      onClick={() => downloadPDF(report)}
+                      className="flex-1 flex items-center justify-center gap-1 bg-blue-50 text-blue-600 py-2 rounded hover:bg-blue-100 transition"
+                    >
+                      <Download size={16} /> Download
+                    </button>
+                    <button
+                      onClick={() => handleDelete(report.id)}
+                      className="flex-1 flex items-center justify-center gap-1 bg-red-50 text-red-600 py-2 rounded hover:bg-red-100 transition"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+              <p className="text-lg">No reports generated yet</p>
+              <p className="text-sm mt-2">Click the buttons above to generate your first report</p>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  )
-}
+    </Layout>
+  );
+};
+
+export default Reports;

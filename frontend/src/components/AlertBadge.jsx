@@ -1,43 +1,54 @@
-import React from 'react'
+import React from 'react';
 
-const TYPE_CONFIG = {
-  methane: { label: 'Methane Gas',  cls: 'bg-orange-500/15 text-orange-400 border-orange-500/30', dot: 'bg-orange-500' },
-  toxic:   { label: 'Toxic Gas',    cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30', dot: 'bg-purple-500' },
-  fall:    { label: 'Fall Detected',cls: 'bg-red-500/15 text-red-400 border-red-500/30',           dot: 'bg-red-500'    },
-  sos:     { label: 'SOS Alert',    cls: 'bg-red-600/20 text-red-300 border-red-600/40',           dot: 'bg-red-600'    },
-}
-const SEV_CONFIG = {
-  critical: 'bg-red-500/15 text-red-400 border-red-500/30',
-  warning:  'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  info:     'bg-blue-500/15 text-blue-400 border-blue-500/30',
-}
-const STATUS_CONFIG = {
-  active:   'bg-red-500/15 text-red-400 border-red-500/30',
-  resolved: 'bg-green-500/15 text-green-400 border-green-500/30',
-}
+const AlertBadge = ({ alert, onClick }) => {
+  const severityColors = {
+    critical: 'bg-red-100 text-red-800 border-red-300',
+    high: 'bg-orange-100 text-orange-800 border-orange-300',
+    medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    low: 'bg-blue-100 text-blue-800 border-blue-300'
+  };
 
-export function AlertTypeBadge({ type }) {
-  const c = TYPE_CONFIG[type] || { label: type, cls: 'bg-gray-500/15 text-gray-400 border-gray-500/30' }
+  const getSeverityIcon = (severity) => {
+    const icons = {
+      critical: '🔴',
+      high: '🟠',
+      medium: '🟡',
+      low: '🔵'
+    };
+    return icons[severity] || '⭕';
+  };
+
+  const getStatusIcon = (status) => {
+    return status === 'active' ? '⚠️' : '✅';
+  };
+
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${c.cls}`}>
-      {c.dot && <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />}
-      {c.label}
-    </span>
-  )
-}
+    <div
+      onClick={onClick}
+      className={`${severityColors[alert.severity]} border rounded-lg p-4 cursor-pointer hover:shadow-lg transition`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">{getSeverityIcon(alert.severity)}</span>
+            <h4 className="font-semibold">{alert.type.replace(/_/g, ' ').toUpperCase()}</h4>
+          </div>
+          <p className="text-sm mb-2">{alert.message}</p>
+          <div className="flex items-center gap-3 text-xs">
+            <span>{new Date(alert.createdAt).toLocaleDateString()}</span>
+            <span>Device: {alert.device?.name}</span>
+          </div>
+        </div>
+        <div className="text-lg ml-2">{getStatusIcon(alert.status)}</div>
+      </div>
 
-export function SeverityBadge({ severity }) {
-  return (
-    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${SEV_CONFIG[severity] || SEV_CONFIG.info}`}>
-      {severity?.toUpperCase()}
-    </span>
-  )
-}
+      {alert.status === 'resolved' && alert.resolvedAt && (
+        <p className="text-xs mt-2 pt-2 border-t">
+          Resolved: {new Date(alert.resolvedAt).toLocaleDateString()}
+        </p>
+      )}
+    </div>
+  );
+};
 
-export function StatusBadge({ status }) {
-  return (
-    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${STATUS_CONFIG[status] || 'bg-gray-500/15 text-gray-400 border-gray-500/30'}`}>
-      {status?.toUpperCase()}
-    </span>
-  )
-}
+export default AlertBadge;

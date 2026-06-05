@@ -1,115 +1,119 @@
-import React, { useState, useEffect } from 'react'
-import { Search, RefreshCw, Wind, Zap, Battery, Wifi, WifiOff } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { workersAPI } from '../../api'
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Layout from '../../components/Layout';
+import { workersAPI, devicesAPI } from '../../api/index';
+import { User } from 'lucide-react';
 
-export default function SupervisorWorkers() {
-  const [workers, setWorkers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch]   = useState('')
+const SupervisorWorkers = () => {
+  const [workers, setWorkers] = useState([]);
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    try { const res = await workersAPI.getAll(); setWorkers(res.data) }
-    catch { toast.error('Failed to load') }
-    finally { setLoading(false) }
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [workersRes, devicesRes] = await Promise.all([
+        workersAPI.getAll(),
+        devicesAPI.getAll()
+      ]);
+      setWorkers(workersRes.data.workers);
+      setDevices(devicesRes.data.devices);
+    } catch (error) {
+      toast.error('Failed to load data');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <Layout><div className="text-center py-8">Loading workers...</div></Layout>;
   }
-  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t) }, [])
-
-  const filtered = workers.filter(w =>
-    !search || [w.name, w.employeeId, w.zone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  )
-
-  if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="w-6 h-6 text-orange-500 animate-spin" /></div>
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-white">My Workers</h1>
-          <p className="text-dark-400 text-sm">{workers.length} assigned workers</p>
-        </div>
-        <button onClick={load} className="sg-btn sg-btn-ghost"><RefreshCw size={14} /> Refresh</button>
-      </div>
+    <Layout>
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-800">Team Members</h2>
 
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workers..." className="sg-input pl-9" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-3">
-        {filtered.map(w => {
-          const s = w.sensorData; const d = w.device
-          const isOnline = d?.status === 'online'
-          const statusLabel = !s ? 'NO DATA'
-            : (s.sosActivated || s.fallDetected || s.methane>=500 || s.toxic>=350) ? 'CRITICAL'
-            : (s.methane>=300 || s.toxic>=250) ? 'WARNING' : 'SAFE'
-          const statusStyle = statusLabel === 'CRITICAL' ? 'bg-red-500/15 text-red-400 border-red-500/30 animate-emergency'
-            : statusLabel === 'WARNING'  ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30'
-            : statusLabel === 'SAFE'     ? 'bg-green-500/10 text-green-400 border-green-500/20'
-            : 'bg-[#1a1a1a] text-dark-400 border-[#2a2a2a]'
-          return (
-            <div key={w.id} className={`bg-[#0f0f0f] border rounded-2xl p-5 transition-all ${statusLabel === 'CRITICAL' ? 'border-red-500/30' : 'border-[#1a1a1a] hover:border-orange-500/20'}`}>
-              <div className="flex items-start justify-between flex-wrap gap-3">
-                {/* Worker info */}
-                <div className="flex items-center gap-3">
-                  <div className="relative w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-lg font-black text-orange-400 flex-shrink-0">
-                    {w.name?.charAt(0)}
-                    <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-[#0f0f0f] ${isOnline ? 'bg-green-500' : 'bg-dark-500'}`} />
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-white">{w.name}</p>
-                    <p className="text-xs text-dark-400">{w.employeeId} • {w.zone}</p>
-                    <p className="text-xs text-dark-500">{w.phone}</p>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {workers.map((worker) => (
+            <div key={worker.id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <User className="text-blue-600" size={24} />
                 </div>
-
-                <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl border ${statusStyle}`}>{statusLabel}</span>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-800">{worker.name}</h3>
+                  <p className="text-sm text-gray-600">{worker.zone}</p>
+                </div>
               </div>
 
-              {s ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                  {[
-                    { label: 'Methane', value: s.methane, unit: 'ppm', warn: 300, crit: 500, icon: Wind },
-                    { label: 'Toxic',   value: s.toxic,   unit: 'ppm', warn: 250, crit: 350, icon: Zap  },
-                  ].map(m => {
-                    const color = m.value >= m.crit ? 'text-red-400' : m.value >= m.warn ? 'text-yellow-400' : 'text-green-400'
-                    return (
-                      <div key={m.label} className="bg-[#141414] rounded-xl p-3 border border-[#1f1f1f]">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <m.icon size={11} className={color} />
-                          <span className="text-[10px] text-dark-400 font-semibold uppercase">{m.label}</span>
-                        </div>
-                        <p className={`text-xl font-black tabular-nums ${color}`}>{m.value}</p>
-                        <p className="text-[9px] text-dark-500">{m.unit}</p>
-                      </div>
-                    )
-                  })}
-                  <div className="bg-[#141414] rounded-xl p-3 border border-[#1f1f1f]">
-                    <p className="text-[10px] text-dark-400 uppercase mb-1">Fall / SOS</p>
-                    <p className={`text-xs font-bold ${s.fallDetected ? 'text-red-400' : 'text-green-400'}`}>{s.fallDetected ? '⚠ FALL' : '✓ OK'}</p>
-                    <p className={`text-xs font-bold mt-1 ${s.sosActivated ? 'text-red-300 animate-pulse' : 'text-dark-400'}`}>{s.sosActivated ? '🚨 SOS' : '— SOS'}</p>
-                  </div>
-                  <div className="bg-[#141414] rounded-xl p-3 border border-[#1f1f1f]">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Battery size={11} className={d?.batteryLevel > 20 ? 'text-green-400' : 'text-red-400'} />
-                      <span className="text-[10px] text-dark-400 uppercase">Battery</span>
-                    </div>
-                    <p className={`text-xl font-black tabular-nums ${d?.batteryLevel > 20 ? 'text-green-400' : 'text-red-400'}`}>
-                      {Math.round(d?.batteryLevel || 0)}%
-                    </p>
-                    <p className="text-[9px] text-dark-500">{new Date(s.timestamp).toLocaleTimeString()}</p>
-                  </div>
+              <div className="space-y-2 mb-4 text-sm text-gray-600 border-y py-3">
+                <div>
+                  <p className="text-xs text-gray-500">Email:</p>
+                  <p className="font-semibold">{worker.email}</p>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 mt-4 text-dark-500">
-                  <WifiOff size={14} />
-                  <span className="text-xs">No sensor data available</span>
+                <div>
+                  <p className="text-xs text-gray-500">Phone:</p>
+                  <p className="font-semibold">{worker.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Status:</p>
+                  <p className="font-semibold capitalize">{worker.status}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Tasks Completed:</p>
+                  <p className="font-semibold">{worker.tasksCompleted}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Avg Response Time:</p>
+                  <p className="font-semibold">{worker.averageResponseTime}</p>
+                </div>
+              </div>
+
+              {worker.assignedDevices.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Assigned Devices:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {worker.assignedDevices.slice(0, 3).map(deviceId => {
+                      const device = devices.find(d => d.id === deviceId);
+                      return (
+                        <span key={deviceId} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {device?.name}
+                        </span>
+                      );
+                    })}
+                    {worker.assignedDevices.length > 3 && (
+                      <span className="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">
+                        +{worker.assignedDevices.length - 3} more
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
+
+              <div className="pt-4 border-t">
+                <p className="text-xs text-gray-500">Last Assignment:</p>
+                <p className="text-sm text-gray-800">
+                  {new Date(worker.lastAssignment).toLocaleString()}
+                </p>
+              </div>
             </div>
-          )
-        })}
+          ))}
+        </div>
+
+        {workers.length === 0 && (
+          <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+            <p className="text-lg">No workers assigned to your team</p>
+          </div>
+        )}
       </div>
-    </div>
-  )
-}
+    </Layout>
+  );
+};
+
+export default SupervisorWorkers;

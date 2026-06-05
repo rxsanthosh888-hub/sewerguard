@@ -14,7 +14,8 @@
     "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
     "uuid": "^9.0.0",
-    "jspdf": "^2.5.1",
+    "pdfkit": "^0.13.0",
+    "exceljs": "^4.3.0",
     "express-validator": "^7.0.1",
     "helmet": "^7.0.0",
     "morgan": "^1.10.0"

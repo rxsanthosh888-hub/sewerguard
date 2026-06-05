@@ -1,192 +1,243 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, Search, Edit2, Trash2, X, Save, RefreshCw, UserCheck, Users } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { supervisorsAPI } from '../../api'
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Layout from '../../components/Layout';
+import { supervisorsAPI, workersAPI } from '../../api/index';
+import { Plus, Edit2, Trash2, Users } from 'lucide-react';
 
-function Modal({ title, onClose, children }) {
+const Supervisors = () => {
+  const [supervisors, setSupervisors] = useState([]);
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    zone: ''
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [supervisorsRes, workersRes] = await Promise.all([
+        supervisorsAPI.getAll(),
+        workersAPI.getAll()
+      ]);
+      setSupervisors(supervisorsRes.data.supervisors);
+      setWorkers(workersRes.data.workers);
+    } catch (error) {
+      toast.error('Failed to load data');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingId) {
+        await supervisorsAPI.update(editingId, formData);
+        toast.success('Supervisor updated successfully');
+      } else {
+        await supervisorsAPI.create(formData);
+        toast.success('Supervisor created successfully');
+      }
+      setShowForm(false);
+      setFormData({ name: '', email: '', phone: '', zone: '' });
+      setEditingId(null);
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to save supervisor');
+      console.error('Error:', error);
+    }
+  };
+
+  const handleEdit = (supervisor) => {
+    setFormData({
+      name: supervisor.name,
+      email: supervisor.email,
+      phone: supervisor.phone,
+      zone: supervisor.zone
+    });
+    setEditingId(supervisor.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this supervisor?')) {
+      try {
+        await supervisorsAPI.delete(id);
+        toast.success('Supervisor deleted successfully');
+        fetchData();
+      } catch (error) {
+        toast.error('Failed to delete supervisor');
+      }
+    }
+  };
+
+  if (loading) {
+    return <Layout><div className="text-center py-8">Loading supervisors...</div></Layout>;
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop animate-slide-up">
-      <div className="w-full max-w-lg bg-[#0f0f0f] border border-[#2a2a2a] rounded-2xl shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a]">
-          <h2 className="text-base font-bold text-white">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#1a1a1a] text-dark-300 hover:text-white transition-colors">
-            <X size={16} />
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-800">Supervisor Management</h2>
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingId(null);
+              setFormData({ name: '', email: '', phone: '', zone: '' });
+            }}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={20} /> Add Supervisor
           </button>
         </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  )
-}
 
-const EMPTY = { name: '', email: '', password: '', phone: '', zone: '', status: 'active' }
-
-export default function AdminSupervisors() {
-  const [supervisors, setSupervisors] = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [search, setSearch]           = useState('')
-  const [modal, setModal]             = useState(null)
-  const [selected, setSelected]       = useState(null)
-  const [form, setForm]               = useState(EMPTY)
-  const [saving, setSaving]           = useState(false)
-
-  const load = async () => {
-    try {
-      const res = await supervisorsAPI.getAll()
-      setSupervisors(res.data)
-    } catch { toast.error('Failed to load') }
-    finally  { setLoading(false) }
-  }
-
-  useEffect(() => { load() }, [])
-
-  const openAdd  = ()  => { setForm(EMPTY); setModal('add') }
-  const openEdit = (s) => { setSelected(s); setForm({ ...s, password: '' }); setModal('edit') }
-  const close    = ()  => { setModal(null); setSelected(null); setForm(EMPTY) }
-
-  const handleSave = async () => {
-    if (!form.name || !form.email) return toast.error('Name and email required')
-    if (modal === 'add' && !form.password) return toast.error('Password required')
-    setSaving(true)
-    try {
-      if (modal === 'add') { await supervisorsAPI.create(form); toast.success('Supervisor added') }
-      else                 { await supervisorsAPI.update(selected.id, form); toast.success('Supervisor updated') }
-      close(); load()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Save failed')
-    } finally { setSaving(false) }
-  }
-
-  const handleDelete = async (s) => {
-    if (!window.confirm(`Delete ${s.name}?`)) return
-    try { await supervisorsAPI.delete(s.id); toast.success('Deleted'); load() }
-    catch { toast.error('Delete failed') }
-  }
-
-  const filtered = supervisors.filter(s =>
-    !search || [s.name, s.email, s.zone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  )
-
-  if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="w-6 h-6 text-orange-500 animate-spin" /></div>
-
-  return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-white">Supervisors</h1>
-          <p className="text-dark-400 text-sm">{supervisors.length} total supervisors</p>
-        </div>
-        <button onClick={openAdd} className="sg-btn sg-btn-primary"><Plus size={16} /> Add Supervisor</button>
-      </div>
-
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search supervisors..." className="sg-input pl-9" />
-      </div>
-
-      {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(s => (
-          <div key={s.id} className="bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl p-5 card-hover">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-700/10 border border-blue-500/20 flex items-center justify-center text-base font-black text-blue-400">
-                  {s.name?.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-white">{s.name}</p>
-                  <p className="text-[10px] text-dark-400">{s.email}</p>
-                </div>
+        {showForm && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">
+              {editingId ? 'Edit Supervisor' : 'Add New Supervisor'}
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  required
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Zone"
+                  value={formData.zone}
+                  onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                />
               </div>
-              <span className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${s.status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-[#1a1a1a] text-dark-400 border-[#2a2a2a]'}`}>
-                {s.status?.toUpperCase()}
-              </span>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              {[
-                ['Zone', s.zone || 'Unassigned'],
-                ['Phone', s.phone || '—'],
-                ['Workers', `${s.assignedWorkers?.length || s.workerCount || 0} assigned`],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-[10px] text-dark-500 uppercase tracking-wider">{k}</span>
-                  <span className="text-xs font-semibold text-dark-200">{v}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <div className="flex-1 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, ((s.assignedWorkers?.length || 0) / 5) * 100)}%` }} />
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+                >
+                  {editingId ? 'Update' : 'Create'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="bg-gray-400 text-white px-6 py-2 rounded-lg hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
               </div>
-              <span className="text-[10px] text-dark-400">{s.assignedWorkers?.length || 0}/5</span>
-            </div>
-
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => openEdit(s)} className="sg-btn sg-btn-ghost flex-1 justify-center text-xs py-2">
-                <Edit2 size={12} /> Edit
-              </button>
-              <button onClick={() => handleDelete(s)} className="p-2 rounded-lg hover:bg-red-500/10 text-dark-400 hover:text-red-400 transition-colors border border-[#1f1f1f]">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
-
-        {filtered.length === 0 && (
-          <div className="col-span-3 text-center py-16 text-dark-400">
-            <UserCheck size={32} className="mx-auto mb-3 opacity-30" />
-            <p>No supervisors found</p>
+            </form>
           </div>
         )}
-      </div>
 
-      {(modal === 'add' || modal === 'edit') && (
-        <Modal title={modal === 'add' ? 'Add Supervisor' : `Edit — ${selected?.name}`} onClose={close}>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">Full Name *</label>
-                <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} className="sg-input" placeholder="Jane Smith" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {supervisors.map((supervisor) => (
+            <div key={supervisor.id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 bg-purple-100 rounded-full">
+                  <Users className="text-purple-600" size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg text-gray-800">{supervisor.name}</h3>
+                  <p className="text-sm text-gray-600">{supervisor.zone}</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">Zone</label>
-                <input value={form.zone} onChange={e => setForm(f => ({...f, zone: e.target.value}))} className="sg-input" placeholder="Zone A - Downtown" />
+
+              <div className="space-y-2 mb-4 text-sm text-gray-600 border-y py-3">
+                <div>
+                  <p className="text-xs text-gray-500">Email:</p>
+                  <p className="font-semibold">{supervisor.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Phone:</p>
+                  <p className="font-semibold">{supervisor.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Status:</p>
+                  <p className="font-semibold capitalize">{supervisor.status}</p>
+                </div>
+              </div>
+
+              <div className="mb-4 bg-blue-50 p-3 rounded">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700">Team Size:</span>
+                  <span className="font-semibold text-blue-900">{supervisor.teamSize} workers</span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2">
+                  <span className="text-gray-700">Active Alerts:</span>
+                  <span className="font-semibold text-blue-900">{supervisor.activeAlerts}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2">
+                  <span className="text-gray-700">Resolved Alerts:</span>
+                  <span className="font-semibold text-blue-900">{supervisor.resolvedAlerts}</span>
+                </div>
+              </div>
+
+              {supervisor.supervisedWorkers && supervisor.supervisedWorkers.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-600 mb-2">Supervised Workers:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {supervisor.supervisedWorkers.map(workerId => {
+                      const worker = workers.find(w => w.id === workerId);
+                      return (
+                        <span key={workerId} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                          {worker?.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4 border-t">
+                <button
+                  onClick={() => handleEdit(supervisor)}
+                  className="flex-1 flex items-center justify-center gap-1 bg-blue-50 text-blue-600 py-2 rounded hover:bg-blue-100 transition"
+                >
+                  <Edit2 size={16} /> Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(supervisor.id)}
+                  className="flex-1 flex items-center justify-center gap-1 bg-red-50 text-red-600 py-2 rounded hover:bg-red-100 transition"
+                >
+                  <Trash2 size={16} /> Delete
+                </button>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">Email *</label>
-              <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} className="sg-input" placeholder="supervisor@sewerguard.com" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">
-                Password {modal === 'edit' && <span className="font-normal text-dark-500">(leave blank to keep)</span>}
-              </label>
-              <input type="password" value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))} className="sg-input" placeholder="••••••••" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">Phone</label>
-                <input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} className="sg-input" placeholder="+1-555-0000" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-dark-300 uppercase tracking-wider mb-1.5">Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))} className="sg-input">
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleSave} disabled={saving} className="sg-btn sg-btn-primary flex-1 justify-center">
-                {saving ? <><RefreshCw size={14} className="animate-spin" /> Saving...</> : <><Save size={14} /> Save</>}
-              </button>
-              <button onClick={close} className="sg-btn sg-btn-ghost">Cancel</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  )
-}
+          ))}
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
+export default Supervisors;

@@ -6,14 +6,23 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
-    strictPort: false,
-    allowedHosts: 'all',
-    cors: true,
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
-        secure: false
+        rewrite: (path) => path.replace(/^\/api/, '/api')
+      }
+    }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ['recharts'],
+          'react-hot-toast': ['react-hot-toast']
+        }
       }
     }
   }

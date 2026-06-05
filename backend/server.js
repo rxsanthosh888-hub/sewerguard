@@ -25,6 +25,9 @@ app.use('/api/alerts',      require('./routes/alerts'));
 app.use('/api/reports',     require('./routes/reports'));
 app.use('/api/dashboard',   require('./routes/dashboard'));
 
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'OK', message: 'SewerGuard API Running', timestamp: new Date() }));
+
 // ── Serve React Frontend from backend ──────────────────────────
 const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
 app.use(express.static(frontendDist));
@@ -35,9 +38,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'OK', message: 'SewerGuard API Running', timestamp: new Date() }));
-
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -45,9 +45,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`SewerGuard running on port ${PORT}`);
-  console.log(`Frontend: http://localhost:${PORT}`);
-  console.log(`API: http://localhost:${PORT}/api`);
+  console.log(`\n✅ SewerGuard API running on port ${PORT}`);
+  console.log(`📱 Frontend: http://localhost:${PORT}`);
+  console.log(`🔗 API: http://localhost:${PORT}/api\n`);
 });
 
 module.exports = app;

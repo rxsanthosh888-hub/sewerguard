@@ -1,86 +1,105 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const db = require('../config/db');
-const { authenticate } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
-router.get('/admin', authenticate, (req, res) => {
-  const totalWorkers = db.workers.length;
-  const activeWorkers = db.workers.filter(w => w.status === 'active').length;
-  const totalSupervisors = db.supervisors.length;
-  const criticalAlerts = db.alerts.filter(a => a.severity === 'critical' && a.status === 'active').length;
-  const onlineDevices = db.devices.filter(d => d.status === 'online').length;
-  const recentAlerts = db.alerts.slice(0, 10);
+// Admin dashboard
+router.get('/admin', authMiddleware, requireRole(['admin']), (req, res) => {
+  try {
+    const dashboard = db.getAdminDashboard();
+    const latestSensors = db.getAllLatestSensors();
+    const recentAlerts = db
+      .getAllAlerts()
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10);
 
-  // Simulate live data
-  db.workers.filter(w => w.status === 'active').forEach(w => {
-    const device = db.devices.find(d => d.workerId === w.id);
-    if (device?.status === 'online') {
-      const latest = {
-        id: uuidv4(),
-        workerId: w.id,
-        methane: Math.floor(Math.random() * 250 + 50),
-        toxic: Math.floor(Math.random() * 180 + 30),
-        fallDetected: false,
-        sosActivated: false,
-        battery: device.batteryLevel,
-        timestamp: new Date()
+    // Calculate average gas levels
+    const avgMethane = latestSensors.length > 0
+      ? latestSensors.reduce((sum, s) => sum + s.methane, 0) / latestSensors.length
+      : 0;
+    const avgToxic = latestSensors.length > 0
+      ? latestSensors.reduce((sum, s) => sum + s.toxic, 0) / latestSensors.length
+      : 0;
+
+    const alertsWithWorkers = recentAlerts.map((a) => {
+      const worker = db.getWorkerById(a.workerId);
+      return {
+        ...a,
+        workerName: worker?.name,
+        workerEmail: worker?.email,
       };
-      db.sensorData.push(latest);
-      if (db.sensorData.length > 10000) db.sensorData.shift();
-      device.lastSeen = new Date();
+    });
+
+    res.json({
+      ...dashboard,
+      avgMethane: Math.round(avgMethane),
+      avgToxic: Math.round(avgToxic),
+      sensors: latestSensors,
+      recentAlerts: alertsWithWorkers,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Supervisor dashboard
+router.get('/supervisor', authMiddleware, requireRole(['supervisor']), (req, res) => {
+  try {
+    // Find supervisor from user ID
+    const supervisor = db.supervisors.find((s) => s.userId === req.user.id);
+    if (!supervisor) {
+      return res.status(404).json({ error: 'Supervisor not found' });
     }
-  });
 
-  res.json({
-    stats: {
-      totalWorkers, activeWorkers,
-      inactiveWorkers: totalWorkers - activeWorkers,
-      totalSupervisors, criticalAlerts, onlineDevices,
-      totalDevices: db.devices.length
-    },
-    recentAlerts,
-    workers: db.workers.map(({ password, ...w }) => {
-      const latest = db.sensorData.filter(s => s.workerId === w.id)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-      const device = db.devices.find(d => d.workerId === w.id);
-      return { ...w, sensorData: latest, device };
-    })
-  });
+    const dashboard = db.getSupervisorDashboard(supervisor.id);
+    const assignedWorkers = db.workers.filter(
+      (w) => w.supervisorId === supervisor.id
+    );
+
+    const sensors = assignedWorkers
+      .map((w) => ({
+        worker: w,
+        sensor: db.getLatestSensor(w.deviceId),
+      }));
+
+    const alerts = db
+      .getAllAlerts()
+      .filter(
+        (a) =>
+          assignedWorkers.findIndex((w) => w.id === a.workerId) !== -1
+      )
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 10);
+
+    res.json({
+      ...dashboard,
+      workers: sensors,
+      recentAlerts: alerts,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.get('/supervisor', authenticate, (req, res) => {
-  const sup = db.supervisors.find(s => s.id === req.user.id);
-  if (!sup) return res.status(404).json({ error: 'Not found' });
+// Worker dashboard
+router.get('/worker', authMiddleware, requireRole(['worker']), (req, res) => {
+  try {
+    // Find worker from user ID
+    const worker = db.workers.find((w) => w.userId === req.user.id);
+    if (!worker) {
+      return res.status(404).json({ error: 'Worker not found' });
+    }
 
-  const workers = db.workers.filter(w => sup.assignedWorkers.includes(w.id)).map(({ password, ...w }) => {
-    const latest = db.sensorData.filter(s => s.workerId === w.id)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-    const device = db.devices.find(d => d.workerId === w.id);
-    const activeAlerts = db.alerts.filter(a => a.workerId === w.id && a.status === 'active');
-    return { ...w, sensorData: latest, device, activeAlerts };
-  });
+    const dashboard = db.getWorkerDashboard(worker.id);
+    const supervisor = db.getSupervisorById(worker.supervisorId);
 
-  const alerts = db.alerts.filter(a => sup.assignedWorkers.includes(a.workerId)).slice(0, 20);
-  const { password, ...supData } = sup;
-  res.json({ supervisor: supData, workers, alerts });
-});
-
-router.get('/worker', authenticate, (req, res) => {
-  const worker = db.workers.find(w => w.id === req.user.id);
-  if (!worker) return res.status(404).json({ error: 'Not found' });
-  const { password, ...w } = worker;
-  const sensorHistory = db.sensorData.filter(s => s.workerId === w.id)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 20);
-  const device = db.devices.find(d => d.workerId === w.id);
-  const supervisor = db.supervisors.find(s => s.id === w.supervisorId);
-  const alerts = db.alerts.filter(a => a.workerId === w.id).slice(0, 10);
-  const { password: sp, ...supData } = supervisor || {};
-  res.json({
-    worker: w, sensorHistory, device,
-    supervisor: supervisor ? supData : null,
-    alerts
-  });
+    res.json({
+      ...dashboard,
+      supervisor,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

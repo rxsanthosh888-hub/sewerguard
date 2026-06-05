@@ -1,29 +1,43 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authMiddleware, requireRole } = require('../middleware/auth');
 
-router.get('/', authenticate, (req, res) => {
-  const devices = db.devices.map(d => {
-    const worker = db.workers.find(w => w.id === d.workerId);
-    return { ...d, workerName: worker?.name || 'Unassigned', workerZone: worker?.zone || '' };
-  });
-  res.json(devices);
+// Get all devices
+router.get('/', authMiddleware, (req, res) => {
+  try {
+    const devices = db.getAllDevices();
+    res.json(devices);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.put('/:id/toggle', authenticate, requireRole('admin'), (req, res) => {
-  const device = db.devices.find(d => d.id === req.params.id);
-  if (!device) return res.status(404).json({ error: 'Device not found' });
-  device.status = device.status === 'online' ? 'offline' : 'online';
-  res.json(device);
+// Get device by ID
+router.get('/:id', authMiddleware, (req, res) => {
+  try {
+    const device = db.getDeviceById(req.params.id);
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    const latestSensor = db.getLatestSensor(device.id);
+    res.json({ ...device, latestSensor });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-router.get('/:id/data', authenticate, (req, res) => {
-  const device = db.devices.find(d => d.id === req.params.id);
-  if (!device) return res.status(404).json({ error: 'Not found' });
-  const sensorData = db.sensorData.filter(s => s.workerId === device.workerId)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 30);
-  res.json({ device, sensorData });
+// Toggle device status
+router.put('/:id/toggle', authMiddleware, requireRole(['admin']), (req, res) => {
+  try {
+    const device = db.toggleDeviceStatus(req.params.id);
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    res.json(device);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

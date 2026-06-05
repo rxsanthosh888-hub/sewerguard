@@ -1,75 +1,161 @@
-import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
-import { AuthProvider, useAuth } from './context/AuthContext'
-import Login from './pages/Login'
-import AdminDashboard from './pages/admin/Dashboard'
-import AdminWorkers from './pages/admin/Workers'
-import AdminSupervisors from './pages/admin/Supervisors'
-import AdminDevices from './pages/admin/Devices'
-import AdminAlerts from './pages/admin/Alerts'
-import AdminReports from './pages/admin/Reports'
-import AdminSettings from './pages/admin/Settings'
-import SupervisorDashboard from './pages/supervisor/Dashboard'
-import SupervisorWorkers from './pages/supervisor/Workers'
-import SupervisorAlerts from './pages/supervisor/Alerts'
-import WorkerDashboard from './pages/worker/Dashboard'
-import Layout from './components/Layout'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-function ProtectedRoute({ children, roles }) {
-  const { user, token } = useAuth()
-  if (!token) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user?.role)) return <Navigate to="/login" replace />
-  return children
-}
+// Pages
+import Login from './pages/Login';
 
-export default function App() {
+// Admin Pages
+import AdminDashboard from './pages/admin/Dashboard';
+import Devices from './pages/admin/Devices';
+import AdminAlerts from './pages/admin/Alerts';
+import Workers from './pages/admin/Workers';
+import Supervisors from './pages/admin/Supervisors';
+import Reports from './pages/admin/Reports';
+import Settings from './pages/admin/Settings';
+
+// Supervisor Pages
+import SupervisorDashboard from './pages/supervisor/Dashboard';
+import SupervisorWorkers from './pages/supervisor/Workers';
+import SupervisorAlerts from './pages/supervisor/Alerts';
+
+// Worker Pages
+import WorkerDashboard from './pages/worker/Dashboard';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{
-          style: { background: '#1a1a1a', color: '#fff', border: '1px solid #f97316' }
-        }} />
+    <Router>
+      <AuthProvider>
         <Routes>
+          {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* Admin Routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute roles={['admin']}>
-              <Layout role="admin" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="workers" element={<AdminWorkers />} />
-            <Route path="supervisors" element={<AdminSupervisors />} />
-            <Route path="devices" element={<AdminDevices />} />
-            <Route path="alerts" element={<AdminAlerts />} />
-            <Route path="reports" element={<AdminReports />} />
-            <Route path="settings" element={<AdminSettings />} />
-          </Route>
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/devices"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Devices />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/alerts"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminAlerts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/workers"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Workers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/supervisors"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Supervisors />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Supervisor Routes */}
-          <Route path="/supervisor" element={
-            <ProtectedRoute roles={['supervisor']}>
-              <Layout role="supervisor" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<SupervisorDashboard />} />
-            <Route path="workers" element={<SupervisorWorkers />} />
-            <Route path="alerts" element={<SupervisorAlerts />} />
-          </Route>
+          <Route
+            path="/supervisor/dashboard"
+            element={
+              <ProtectedRoute requiredRole="supervisor">
+                <SupervisorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/supervisor/workers"
+            element={
+              <ProtectedRoute requiredRole="supervisor">
+                <SupervisorWorkers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/supervisor/alerts"
+            element={
+              <ProtectedRoute requiredRole="supervisor">
+                <SupervisorAlerts />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Worker Routes */}
-          <Route path="/worker" element={
-            <ProtectedRoute roles={['worker']}>
-              <Layout role="worker" />
-            </ProtectedRoute>
-          }>
-            <Route index element={<WorkerDashboard />} />
-          </Route>
+          <Route
+            path="/worker/dashboard"
+            element={
+              <ProtectedRoute requiredRole="worker">
+                <WorkerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch All - Redirect to Login */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  )
+
+        <Toaster position="top-right" />
+      </AuthProvider>
+    </Router>
+  );
 }
+
+export default App;

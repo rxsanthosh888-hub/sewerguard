@@ -1,106 +1,158 @@
-import React, { useState, useEffect } from 'react'
-import { AlertTriangle, CheckCircle, RefreshCw, Bell, Search } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { alertsAPI } from '../../api'
-import { AlertTypeBadge, SeverityBadge, StatusBadge } from '../../components/AlertBadge'
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import Layout from '../../components/Layout';
+import AlertBadge from '../../components/AlertBadge';
+import { alertsAPI } from '../../api/index';
 
-export default function SupervisorAlerts() {
-  const [alerts, setAlerts]     = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
-  const [statusF, setStatusF]   = useState('all')
-  const [resolving, setResolving] = useState(null)
+const SupervisorAlerts = () => {
+  const [alerts, setAlerts] = useState([]);
+  const [filteredAlerts, setFilteredAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedAlert, setSelectedAlert] = useState(null);
 
-  const load = async () => {
-    try { const res = await alertsAPI.getAll({ limit: 80 }); setAlerts(res.data) }
-    catch { toast.error('Failed to load') }
-    finally { setLoading(false) }
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
+
+  useEffect(() => {
+    filterAlerts();
+  }, [alerts, statusFilter]);
+
+  const fetchAlerts = async () => {
+    try {
+      setLoading(true);
+      const response = await alertsAPI.getAll();
+      setAlerts(response.data.alerts);
+    } catch (error) {
+      toast.error('Failed to load alerts');
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterAlerts = () => {
+    let filtered = alerts;
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(a => a.status === statusFilter);
+    }
+
+    setFilteredAlerts(filtered);
+  };
+
+  const handleResolve = async (alert) => {
+    try {
+      await alertsAPI.updateStatus(alert.id, 'resolved');
+      toast.success('Alert resolved');
+      fetchAlerts();
+      setSelectedAlert(null);
+    } catch (error) {
+      toast.error('Failed to resolve alert');
+    }
+  };
+
+  if (loading) {
+    return <Layout><div className="text-center py-8">Loading alerts...</div></Layout>;
   }
-  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t) }, [])
-
-  const handleResolve = async (id) => {
-    setResolving(id)
-    try { await alertsAPI.resolve(id); toast.success('Resolved'); load() }
-    catch { toast.error('Failed') }
-    finally { setResolving(null) }
-  }
-
-  const filtered = alerts.filter(a => {
-    const ms = !search || [a.workerName, a.message].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-    const mf = statusF === 'all' || a.status === statusF
-    return ms && mf
-  })
-
-  if (loading) return <div className="flex items-center justify-center h-64"><RefreshCw className="w-6 h-6 text-orange-500 animate-spin" /></div>
-
-  const active = alerts.filter(a => a.status === 'active').length
 
   return (
-    <div className="space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-white">Alert History</h1>
-          <p className="text-dark-400 text-sm">Your team's safety incidents</p>
+    <Layout>
+      <div className="space-y-6">
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Alerts</option>
+            <option value="active">Active Only</option>
+            <option value="resolved">Resolved Only</option>
+          </select>
         </div>
-        {active > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/30 animate-pulse">
-            <AlertTriangle size={14} className="text-red-400" />
-            <span className="text-xs font-bold text-red-400">{active} Active</span>
-          </div>
-        )}
-      </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search alerts..." className="sg-input pl-9" />
-        </div>
-        <div className="flex gap-2">
-          {['all','active','resolved'].map(s => (
-            <button key={s} onClick={() => setStatusF(s)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all capitalize ${statusF === s ? 'bg-orange-500 text-white' : 'bg-[#111] border border-[#1f1f1f] text-dark-300 hover:text-white'}`}>
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {filtered.length === 0 && (
-          <div className="text-center py-16 bg-[#0f0f0f] border border-[#1a1a1a] rounded-2xl">
-            <Bell size={28} className="mx-auto text-dark-600 mb-2" />
-            <p className="text-dark-400">No alerts found</p>
-          </div>
-        )}
-        {filtered.map(a => (
-          <div key={a.id}
-            className={`flex items-start gap-3 p-4 rounded-2xl border transition-all ${
-              a.severity === 'critical' && a.status === 'active' ? 'bg-red-500/5 border-red-500/20' : 'bg-[#0f0f0f] border-[#1a1a1a]'
-            }`}>
-            <div className={`w-2.5 h-2.5 rounded-full mt-2 flex-shrink-0 ${a.severity === 'critical' ? 'bg-red-500' : 'bg-yellow-500'} ${a.status === 'active' ? 'animate-pulse' : ''}`} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2 flex-wrap">
-                <div>
-                  <p className="text-sm font-bold text-white">{a.workerName}</p>
-                  <p className="text-xs text-dark-400 mt-0.5">{a.message}</p>
+        {/* Alerts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Alerts List */}
+          <div className="lg:col-span-2 space-y-4">
+            {filteredAlerts.length > 0 ? (
+              filteredAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  onClick={() => setSelectedAlert(alert)}
+                  className="cursor-pointer"
+                >
+                  <AlertBadge alert={alert} />
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <AlertTypeBadge type={a.type} />
-                  <SeverityBadge severity={a.severity} />
-                  <StatusBadge status={a.status} />
-                </div>
+              ))
+            ) : (
+              <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                <p className="text-lg">No alerts match your filters</p>
               </div>
-              <p className="text-[10px] text-dark-500 mt-1.5">{new Date(a.timestamp).toLocaleString()}</p>
-            </div>
-            {a.status === 'active' && (
-              <button onClick={() => handleResolve(a.id)} disabled={resolving === a.id}
-                className="sg-btn text-xs px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/20 flex-shrink-0">
-                {resolving === a.id ? <RefreshCw size={11} className="animate-spin" /> : <><CheckCircle size={11} /> Resolve</>}
-              </button>
             )}
           </div>
-        ))}
+
+          {/* Alert Details */}
+          <div className="bg-white rounded-lg shadow p-6 h-fit sticky top-6">
+            {selectedAlert ? (
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg text-gray-800">Details</h3>
+
+                <div className="space-y-3 pt-4 border-t">
+                  <div>
+                    <p className="text-sm text-gray-600">Type</p>
+                    <p className="font-semibold">{selectedAlert.type.replace(/_/g, ' ').toUpperCase()}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Severity</p>
+                    <p className="font-semibold capitalize">{selectedAlert.severity}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <p className="font-semibold capitalize">{selectedAlert.status}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Device</p>
+                    <p className="font-semibold">{selectedAlert.device?.name}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Message</p>
+                    <p className="mt-1">{selectedAlert.message}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-600">Created</p>
+                    <p className="font-semibold">{new Date(selectedAlert.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  {selectedAlert.status === 'active' && (
+                    <button
+                      onClick={() => handleResolve(selectedAlert)}
+                      className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
+                    >
+                      Mark as Resolved
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p>Select an alert to view details</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  )
-}
+    </Layout>
+  );
+};
+
+export default SupervisorAlerts;
