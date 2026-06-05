@@ -20,8 +20,10 @@ const char* WIFI_PASSWORD = "santhosh kvg";
 
 // ─────────────────────────────────────────────
 // SEWERGUARD SERVER URL
+// For local testing, use your PC's IP: http://172.20.46.24:5000/api/sensors/ingest
+// For production, use: https://sewerguard-backend.vercel.app/api/sensors/ingest
 // ─────────────────────────────────────────────
-const char* SERVER_URL = "https://sewerguard-backend.vercel.app/api/sensors/ingest";
+const char* SERVER_URL = "http://172.20.46.24:5000/api/sensors/ingest";
 
 // ─────────────────────────────────────────────
 // DEVICE ID — Must match device in SewerGuard app
@@ -63,18 +65,25 @@ const int SEND_INTERVAL = 3000; // Send every 3 seconds
 // ─────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=========================================");
+  delay(2000);  // Wait 2 seconds for Serial to stabilize
+  
+  Serial.println("\n\n");
+  Serial.println("=========================================");
   Serial.println("  SewerGuard Smart Safety Helmet");
   Serial.println("=========================================");
+  Serial.println("[SETUP] Starting initialization...");
+  delay(500);
 
   // Pin Modes
   pinMode(SOS_PIN,    INPUT_PULLUP);
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
+  Serial.println("[SETUP] Pins configured");
 
   // ADC setup for gas sensors
   analogReadResolution(12);   // 12-bit ADC (0-4095)
   analogSetAttenuation(ADC_11db); // 0-3.3V range
+  Serial.println("[SETUP] ADC configured");
 
   // MPU6050 Init
   Wire.begin(21, 22);  // SDA=21, SCL=22

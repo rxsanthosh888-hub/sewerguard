@@ -18,7 +18,7 @@ const Settings = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleSettingToggle = (key) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] });
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
     toast.success('Setting updated');
   };
 
