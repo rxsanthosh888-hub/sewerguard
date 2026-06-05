@@ -1,0 +1,16 @@
+{
+  "projects": [
+    {
+      "name": "sewerguard-backend",
+      "rootDirectory": "backend",
+      "buildCommand": "npm install",
+      "outputDirectory": "."
+    },
+    {
+      "name": "sewerguard-frontend",
+      "rootDirectory": "frontend",
+      "buildCommand": "npm run build",
+      "outputDirectory": "dist"
+    }
+  ]
+}
